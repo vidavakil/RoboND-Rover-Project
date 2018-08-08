@@ -38,10 +38,21 @@ ground_truth_3d = np.dstack((ground_truth*0, ground_truth*255, ground_truth*0)).
 # Define RoverState() class to retain rover state parameters
 class RoverState():
     def __init__(self):
+        self.step = 0 # counter for simulation step
+        self.adjacent_angles = None # Angles of close-by navigable terrain pixels
+        self.backup_steps = 0 # Current time steps remained in a back up
+        self.message = None # Message showing decision details on the world map
+        self.found_rock = 0
+        self.rock_pos = np.zeros(2, dtype=np.float)
+        self.rock_angle = 0.0
+        self.approach_steps = 0
+        self.fps = 0
+        
         self.start_time = None # To record the start time of navigation
         self.total_time = None # To record total duration of naviagation
         self.img = None # Current camera image
         self.pos = None # Current position (x, y)
+        self.previous_pos = np.zeros((10, 2), dtype=np.float) # Previous poses
         self.yaw = None # Current yaw angle
         self.pitch = None # Current pitch angle
         self.roll = None # Current roll angle
@@ -59,8 +70,8 @@ class RoverState():
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
         # get creative in adding new fields or modifying these!
-        self.stop_forward = 50 # Threshold to initiate stopping
-        self.go_forward = 500 # Threshold to go forward again
+        self.stop_forward = 100 # Threshold to initiate stopping. Original = 50
+        self.go_forward = 300 # Threshold to go forward again. Original = 500
         self.max_vel = 2 # Maximum velocity (meters/second)
         # Image output from perception step
         # Update this image to display your intermediate analysis steps
@@ -77,7 +88,7 @@ class RoverState():
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
-# Initialize our rover 
+# Initialize our rover
 Rover = RoverState()
 
 # Variables to track frames per second (FPS)
@@ -97,6 +108,7 @@ def telemetry(sid, data):
     # Do a rough calculation of frames per second (FPS)
     if (time.time() - second_counter) > 1:
         fps = frame_counter
+        Rover.fps = fps
         frame_counter = 0
         second_counter = time.time()
     print("Current FPS: {}".format(fps))
